@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart' '';
-
-typedef RelativePositionRulerValueLabelFormatter = String Function(
-  double value,
-);
+import 'package:relative_position_ruler_indicator/src/indicator.dart';
 
 class RelativePositionRulerPainter extends CustomPainter {
   RelativePositionRulerPainter({
@@ -11,45 +8,42 @@ class RelativePositionRulerPainter extends CustomPainter {
     required this.minNormalValue,
     required this.maxNormalValue,
     required this.aboveValue,
-    required this.gradientColor,
-    this.barHeight = 20.0,
-    this.borderColor = Colors.black,
-    this.aboveLabel = 'Acima',
-    this.belowLabel = 'Abaixo',
-    this.normalLabel = 'Normal',
-    this.textStyle = const TextStyle(
-      fontSize: 12,
-      color: Colors.black,
-    ),
-    this.valueLabelFormatter = _defaultRulerValueLabelFormatter,
+    required this.rulerHeight,
+    required this.aboveLabel,
+    required this.belowLabel,
+    required this.normalLabel,
+    required this.textStyle,
+    required this.allowRepaint,
+    required this.valueLabelFormatter,
+    required this.allowCurrentValueIndicator,
+    this.allowBellowBar = true,
+    this.borderColor,
+    this.gradientColor,
   });
 
-  final double barHeight;
+  final double rulerHeight;
   final double belowValue;
   final double minNormalValue;
   final double maxNormalValue;
   final double aboveValue;
   final double currentValue;
-  final Gradient gradientColor;
-  final Color borderColor;
+  final Gradient? gradientColor;
+  final Color? borderColor;
   final String belowLabel;
   final String normalLabel;
   final String aboveLabel;
   final TextStyle textStyle;
+  final bool allowRepaint;
+  final bool allowCurrentValueIndicator;
+  final bool allowBellowBar;
   final RelativePositionRulerValueLabelFormatter valueLabelFormatter;
-
-  static String _defaultRulerValueLabelFormatter(double value) {
-    return value
-        .toStringAsFixed(value.truncateToDouble() == value ? 0 : 1)
-        .replaceAll('.', ',');
-  }
 
   @override
   void paint(Canvas canvas, Size size) {
     const startX = 0.0;
     final endX = size.width;
     final centerY = size.height / 2;
-    final halfBarHeight = barHeight / 2;
+    final halfBarHeight = rulerHeight / 2;
     const belowPosition = startX;
     final normalStartPosition = startX +
         (minNormalValue - belowValue) /
@@ -72,17 +66,26 @@ class RelativePositionRulerPainter extends CustomPainter {
       normalStartPosition,
       normalEndPosition,
     );
-    _drawXIndicator(canvas, startX, endX, centerY);
+    if (allowCurrentValueIndicator) {
+      _drawXIndicator(canvas, startX, endX, centerY);
+    }
 
-    final rulerLabelPainter = TextPainter(textDirection: TextDirection.ltr);
-    _paintRulerLabel(
-      painter: rulerLabelPainter,
-      label: belowLabel,
-      canvas: canvas,
-      centerY: centerY,
-      startX: belowPosition,
-      endX: normalStartPosition,
+    final rulerLabelPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '...',
     );
+
+    if (allowBellowBar) {
+      _paintRulerLabel(
+        painter: rulerLabelPainter,
+        label: belowLabel,
+        canvas: canvas,
+        centerY: centerY,
+        startX: belowPosition,
+        endX: normalStartPosition,
+      );
+    }
 
     _paintRulerLabel(
       painter: rulerLabelPainter,
@@ -104,20 +107,22 @@ class RelativePositionRulerPainter extends CustomPainter {
 
     final valueLabelPainter = TextPainter(textDirection: TextDirection.ltr);
 
-    _paintValueLabel(
-      value: belowValue,
-      painter: valueLabelPainter,
-      canvas: canvas,
-      centerY: centerY,
-      x: belowPosition,
-    );
+    if (allowBellowBar) {
+      _paintValueLabel(
+        value: belowValue,
+        painter: valueLabelPainter,
+        canvas: canvas,
+        centerY: centerY,
+        x: belowPosition + 6,
+      );
+    }
 
     _paintValueLabel(
       value: minNormalValue,
       painter: valueLabelPainter,
       canvas: canvas,
       centerY: centerY,
-      x: normalStartPosition,
+      x: allowBellowBar ? normalStartPosition : startX,
     );
 
     _paintValueLabel(
@@ -133,7 +138,7 @@ class RelativePositionRulerPainter extends CustomPainter {
       painter: valueLabelPainter,
       canvas: canvas,
       centerY: centerY,
-      x: abovePosition,
+      x: abovePosition - 6,
     );
   }
 
@@ -167,17 +172,19 @@ class RelativePositionRulerPainter extends CustomPainter {
     required double centerY,
     required double x,
   }) {
-    final label = value.format()!;
+    final label = valueLabelFormatter(value);
     painter.text = TextSpan(
       text: label,
       style: textStyle,
     );
-    painter.layout(maxWidth: 30);
+
+    painter.layout(maxWidth: label.length * 10);
+
     painter.paint(
       canvas,
       Offset(
         x - label.length * 3,
-        centerY + (barHeight / 2) + (textStyle.fontSize! / 2),
+        centerY + (rulerHeight / 2) + (textStyle.fontSize! / 2),
       ),
     );
   }
@@ -193,41 +200,46 @@ class RelativePositionRulerPainter extends CustomPainter {
     double normalEndPosition,
   ) {
     const radius = Radius.circular(20.0);
-    final borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0;
 
-    canvas.drawRRect(
-      RRect.fromLTRBR(
-        startX,
-        centerY - halfBarHeight,
-        endX,
-        centerY + halfBarHeight,
-        radius,
-      ),
-      borderPaint,
-    );
+    if (borderColor != null) {
+      final borderPaint = Paint()
+        ..color = borderColor!
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
 
-    canvas.drawRRect(
-      RRect.fromLTRBR(
-        startX,
-        centerY - halfBarHeight,
-        endX,
-        centerY + halfBarHeight,
-        radius,
-      ),
-      Paint()
-        ..shader = gradientColor.createShader(
-          Rect.fromPoints(
-            Offset.zero,
-            Offset(size.width, 0),
-          ),
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+          startX,
+          centerY - halfBarHeight,
+          endX,
+          centerY + halfBarHeight,
+          radius,
         ),
-    );
+        borderPaint,
+      );
+    }
+
+    if (gradientColor != null) {
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+          startX,
+          centerY - halfBarHeight,
+          endX,
+          centerY + halfBarHeight,
+          radius,
+        ),
+        Paint()
+          ..shader = gradientColor!.createShader(
+            Rect.fromPoints(
+              Offset.zero,
+              Offset(size.width, 0),
+            ),
+          ),
+      );
+    }
 
     final separatorPaint = Paint()
-      ..color = borderColor
+      ..color = borderColor ?? Colors.black
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 2.0;
 
@@ -250,46 +262,55 @@ class RelativePositionRulerPainter extends CustomPainter {
     double endX,
     double centerY,
   ) {
-    final halfBarHeight = barHeight / 2;
-    final xPaint = Paint()
-      ..color = Colors.black
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 2.0;
+    final halfBarHeight = rulerHeight / 2;
 
-    final xPosition = startX +
+    double xPosition = startX +
         (currentValue - belowValue) /
             (aboveValue - belowValue) *
             (endX - startX);
 
-    final trianglePath = Path();
-    const triangleHeight = 13.0;
+    if (xPosition < 8) xPosition = 8;
+    if (xPosition > (endX - 8)) xPosition = endX - 8;
+
+    var trianglePath = Path();
+    const triangleHeight = 10.0;
     const halfBase = triangleHeight / 2;
-    trianglePath.moveTo(
-      xPosition,
-      centerY - halfBarHeight + 10,
-    );
-    trianglePath.lineTo(
-      xPosition + halfBase,
-      centerY - triangleHeight - halfBarHeight + 10,
-    );
-    trianglePath.lineTo(
-      xPosition - halfBase,
-      centerY - triangleHeight - halfBarHeight + 10,
-    );
-    trianglePath.lineTo(
-      xPosition,
-      centerY - halfBarHeight + 10,
-    );
-    canvas.drawPath(trianglePath, xPaint);
+
+    trianglePath
+      ..moveTo(
+        xPosition,
+        centerY - halfBarHeight + (triangleHeight / 2),
+      )
+      ..lineTo(
+        xPosition + halfBase,
+        centerY - triangleHeight - halfBarHeight + triangleHeight,
+      )
+      ..lineTo(
+        xPosition - halfBase,
+        centerY - triangleHeight - halfBarHeight + triangleHeight,
+      )
+      ..close();
+
     canvas.drawLine(
       Offset(xPosition, centerY - halfBarHeight),
-      Offset(xPosition, centerY + halfBarHeight - 2),
-      xPaint,
+      Offset(xPosition, centerY + halfBarHeight - 1),
+      Paint()
+        ..color = Colors.black
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 2.0,
+    );
+
+    canvas.drawPath(trianglePath, Paint()..color = Colors.black);
+    canvas.drawPath(
+      trianglePath,
+      Paint()
+        ..color = Colors.black
+        ..strokeWidth = 4.0
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return false;
-  }
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => allowRepaint;
 }
