@@ -113,7 +113,7 @@ class RelativePositionRulerPainter extends CustomPainter {
         painter: valueLabelPainter,
         canvas: canvas,
         centerY: centerY,
-        x: belowPosition + 6,
+        x: (_) => startX,
       );
     }
 
@@ -122,7 +122,13 @@ class RelativePositionRulerPainter extends CustomPainter {
       painter: valueLabelPainter,
       canvas: canvas,
       centerY: centerY,
-      x: allowBellowBar ? normalStartPosition : startX,
+      x: (width) {
+        if (allowBellowBar) {
+          return normalStartPosition - (width / 2);
+        }
+
+        return startX;
+      },
     );
 
     _paintValueLabel(
@@ -130,7 +136,7 @@ class RelativePositionRulerPainter extends CustomPainter {
       painter: valueLabelPainter,
       canvas: canvas,
       centerY: centerY,
-      x: normalEndPosition,
+      x: (width) => normalEndPosition - (width / 2),
     );
 
     _paintValueLabel(
@@ -138,7 +144,7 @@ class RelativePositionRulerPainter extends CustomPainter {
       painter: valueLabelPainter,
       canvas: canvas,
       centerY: centerY,
-      x: abovePosition - 6,
+      x: (width) => abovePosition - width,
     );
   }
 
@@ -170,20 +176,15 @@ class RelativePositionRulerPainter extends CustomPainter {
     required double value,
     required Canvas canvas,
     required double centerY,
-    required double x,
+    required Function(double painterWidth) x,
   }) {
     final label = valueLabelFormatter(value);
-    painter.text = TextSpan(
-      text: label,
-      style: textStyle,
-    );
-
+    painter.text = TextSpan(text: label, style: textStyle);
     painter.layout(maxWidth: label.length * 10);
-
     painter.paint(
       canvas,
       Offset(
-        x - label.length * 3,
+        x(painter.width),
         centerY + (rulerHeight / 2) + (textStyle.fontSize! / 2),
       ),
     );
