@@ -45,16 +45,16 @@ class RelativePositionRulerPainter extends CustomPainter {
     final centerY = size.height / 2;
     final halfBarHeight = rulerHeight / 2;
     const belowPosition = startX;
-    final normalStartPosition = startX +
-        (minNormalValue - belowValue) /
-            (aboveValue - belowValue) *
-            (endX - startX);
-    final normalEndPosition = startX +
-        (maxNormalValue - belowValue) /
-            (aboveValue - belowValue) *
-            (endX - startX);
-    final abovePosition = startX +
-        (aboveValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
+    double normalStartPosition =
+        startX + (minNormalValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
+    double normalEndPosition =
+        startX + (maxNormalValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
+    double abovePosition =
+        startX + (aboveValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
+
+    if (normalStartPosition.isNaN) normalStartPosition = endX / 3;
+    if (normalEndPosition.isNaN) normalEndPosition = (endX / 3) * 2;
+    if (abovePosition.isNaN) abovePosition = endX;
 
     _drawRuler(
       canvas,
@@ -265,10 +265,8 @@ class RelativePositionRulerPainter extends CustomPainter {
   ) {
     final halfBarHeight = rulerHeight / 2;
 
-    double xPosition = startX +
-        (currentValue - belowValue) /
-            (aboveValue - belowValue) *
-            (endX - startX);
+    double xPosition =
+        startX + (currentValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
 
     if (xPosition < 8) xPosition = 8;
     if (xPosition > (endX - 8)) xPosition = endX - 8;
