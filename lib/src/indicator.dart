@@ -7,18 +7,19 @@ typedef RelativePositionRulerValueLabelFormatter = String Function(
 
 class RelativePositionRulerPainterValue {
   RelativePositionRulerPainterValue({
-    required this.below,
     required this.minNormal,
     required this.maxNormal,
-    required this.above,
     required this.current,
-  });
+    double? below,
+    double? above,
+  })  : below = below ?? minNormal * .7,
+        above = above ?? maxNormal * 1.3;
 
-  final double below;
   final double minNormal;
-  final double maxNormal;
-  final double above;
   final double current;
+  final double maxNormal;
+  final double below;
+  final double above;
 }
 
 class RelativePositionRulerIndicator extends StatelessWidget {
@@ -38,8 +39,8 @@ class RelativePositionRulerIndicator extends StatelessWidget {
       color: Colors.black,
     ),
     this.valueLabelFormatter = _defaultRulerValueLabelFormatter,
+    this.allowBelowBar = true,
     this.allowRepaint = false,
-    this.allowBellowBar = true,
   });
 
   final Size size;
@@ -54,12 +55,10 @@ class RelativePositionRulerIndicator extends StatelessWidget {
   final Gradient? gradient;
   final Color? borderColor;
   final RelativePositionRulerValueLabelFormatter valueLabelFormatter;
-  final bool allowBellowBar;
+  final bool allowBelowBar;
 
   static String _defaultRulerValueLabelFormatter(double value) {
-    return value
-        .toStringAsFixed(value.truncateToDouble() == value ? 0 : 1)
-        .replaceAll('.', ',');
+    return value.toStringAsFixed(value.truncateToDouble() == value ? 0 : 1).replaceAll('.', ',');
   }
 
   @override
@@ -82,7 +81,7 @@ class RelativePositionRulerIndicator extends StatelessWidget {
         borderColor: borderColor,
         valueLabelFormatter: valueLabelFormatter,
         allowCurrentValueIndicator: allowCurrentValueIndicator,
-        allowBellowBar: allowBellowBar,
+        allowBelowBar: allowBelowBar,
       ),
     );
   }

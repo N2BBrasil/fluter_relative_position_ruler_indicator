@@ -1,7 +1,11 @@
-import 'package:flutter/material.dart' '';
+import 'package:flutter/material.dart';
 import 'package:relative_position_ruler_indicator/src/indicator.dart';
 
+/// Typedef for a function that calculates the x position for value labels.
+typedef XPositionCalculator = double Function(double painterWidth);
+
 class RelativePositionRulerPainter extends CustomPainter {
+  /// Creates a custom painter for the relative position ruler.
   RelativePositionRulerPainter({
     required this.currentValue,
     required this.belowValue,
@@ -16,7 +20,7 @@ class RelativePositionRulerPainter extends CustomPainter {
     required this.allowRepaint,
     required this.valueLabelFormatter,
     required this.allowCurrentValueIndicator,
-    this.allowBellowBar = true,
+    this.allowBelowBar = true,
     this.borderColor,
     this.gradientColor,
   });
@@ -35,27 +39,32 @@ class RelativePositionRulerPainter extends CustomPainter {
   final TextStyle textStyle;
   final bool allowRepaint;
   final bool allowCurrentValueIndicator;
-  final bool allowBellowBar;
+  final bool allowBelowBar;
   final RelativePositionRulerValueLabelFormatter valueLabelFormatter;
 
   @override
   void paint(Canvas canvas, Size size) {
+    // Calculate the start and end positions of the ruler.
     const startX = 0.0;
     final endX = size.width;
     final centerY = size.height / 2;
     final halfBarHeight = rulerHeight / 2;
     const belowPosition = startX;
-    double normalStartPosition =
-        startX + (minNormalValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
-    double normalEndPosition =
-        startX + (maxNormalValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
-    double abovePosition =
-        startX + (aboveValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
 
-    if (normalStartPosition.isNaN) normalStartPosition = endX / 3;
-    if (normalEndPosition.isNaN) normalEndPosition = (endX / 3) * 2;
-    if (abovePosition.isNaN) abovePosition = endX;
+    // Calculate the positions for the normal and above sections.
+    final positions = _calculateSectionPositions(
+      startX: startX,
+      endX: endX,
+      belowValue: belowValue,
+      minNormalValue: minNormalValue,
+      maxNormalValue: maxNormalValue,
+      aboveValue: aboveValue,
+    );
+    double normalStartPosition = positions[0];
+    double normalEndPosition = positions[1];
+    double abovePosition = positions[2];
 
+    // Draw the main ruler bar, border, gradient, and separators.
     _drawRuler(
       canvas,
       size,
@@ -66,17 +75,21 @@ class RelativePositionRulerPainter extends CustomPainter {
       normalStartPosition,
       normalEndPosition,
     );
+
+    // Draw the current value indicator (triangle and line) if enabled.
     if (allowCurrentValueIndicator) {
       _drawXIndicator(canvas, startX, endX, centerY);
     }
 
+    // Prepare a text painter for labels.
     final rulerLabelPainter = TextPainter(
       textDirection: TextDirection.ltr,
       maxLines: 1,
       ellipsis: '...',
     );
 
-    if (allowBellowBar) {
+    // Draw section labels (BAIXO, NORMAL, ALTO)
+    if (allowBelowBar) {
       _paintRulerLabel(
         painter: rulerLabelPainter,
         label: belowLabel,
@@ -105,31 +118,23 @@ class RelativePositionRulerPainter extends CustomPainter {
       endX: abovePosition,
     );
 
+    // Prepare a text painter for value labels.
     final valueLabelPainter = TextPainter(textDirection: TextDirection.ltr);
 
-    if (allowBellowBar) {
+    if (allowBelowBar) {
       _paintValueLabel(
-        value: belowValue,
+        value: minNormalValue,
         painter: valueLabelPainter,
         canvas: canvas,
         centerY: centerY,
-        x: (_) => startX,
+        x: (width) {
+          if (allowBelowBar) {
+            return normalStartPosition - (width / 2);
+          }
+          return startX;
+        },
       );
     }
-
-    _paintValueLabel(
-      value: minNormalValue,
-      painter: valueLabelPainter,
-      canvas: canvas,
-      centerY: centerY,
-      x: (width) {
-        if (allowBellowBar) {
-          return normalStartPosition - (width / 2);
-        }
-
-        return startX;
-      },
-    );
 
     _paintValueLabel(
       value: maxNormalValue,
@@ -138,16 +143,30 @@ class RelativePositionRulerPainter extends CustomPainter {
       centerY: centerY,
       x: (width) => normalEndPosition - (width / 2),
     );
-
-    _paintValueLabel(
-      value: aboveValue,
-      painter: valueLabelPainter,
-      canvas: canvas,
-      centerY: centerY,
-      x: (width) => abovePosition - width,
-    );
   }
 
+  /// Calculates the positions for the normal and above sections on the ruler.
+  List<double> _calculateSectionPositions({
+    required double startX,
+    required double endX,
+    required double belowValue,
+    required double minNormalValue,
+    required double maxNormalValue,
+    required double aboveValue,
+  }) {
+    double normalStartPosition = startX + (minNormalValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
+    double normalEndPosition = startX + (maxNormalValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
+    double abovePosition = startX + (aboveValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
+
+    // Fallbacks in case of NaN values
+    if (normalStartPosition.isNaN) normalStartPosition = endX / 3;
+    if (normalEndPosition.isNaN) normalEndPosition = (endX / 3) * 2;
+    if (abovePosition.isNaN) abovePosition = endX;
+
+    return [normalStartPosition, normalEndPosition, abovePosition];
+  }
+
+  /// Paints a section label (e.g., BAIXO, NORMAL, ALTO) centered in its section.
   void _paintRulerLabel({
     required TextPainter painter,
     required String label,
@@ -171,12 +190,13 @@ class RelativePositionRulerPainter extends CustomPainter {
     );
   }
 
+  /// Paints a value label (e.g., 0) at a calculated x position below the ruler.
   void _paintValueLabel({
     required TextPainter painter,
     required double value,
     required Canvas canvas,
     required double centerY,
-    required Function(double painterWidth) x,
+    required XPositionCalculator x,
   }) {
     final label = valueLabelFormatter(value);
     painter.text = TextSpan(text: label, style: textStyle);
@@ -190,6 +210,7 @@ class RelativePositionRulerPainter extends CustomPainter {
     );
   }
 
+  /// Draws the main ruler bar, border, gradient, and section separators.
   void _drawRuler(
     Canvas canvas,
     Size size,
@@ -200,8 +221,10 @@ class RelativePositionRulerPainter extends CustomPainter {
     double normalStartPosition,
     double normalEndPosition,
   ) {
+    // Rounded corners for the ruler bar.
     const radius = Radius.circular(20.0);
 
+    // Draw border if specified.
     if (borderColor != null) {
       final borderPaint = Paint()
         ..color = borderColor!
@@ -220,6 +243,7 @@ class RelativePositionRulerPainter extends CustomPainter {
       );
     }
 
+    // Draw gradient fill if specified.
     if (gradientColor != null) {
       canvas.drawRRect(
         RRect.fromLTRBR(
@@ -239,17 +263,22 @@ class RelativePositionRulerPainter extends CustomPainter {
       );
     }
 
+    // Draw section separators (vertical lines).
     final separatorPaint = Paint()
       ..color = borderColor ?? Colors.black
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 2.0;
 
-    canvas.drawLine(
-      Offset(normalStartPosition, centerY - halfBarHeight),
-      Offset(normalStartPosition, centerY + halfBarHeight),
-      separatorPaint,
-    );
+    // Draw the separator for the below section.
+    if (allowBelowBar) {
+      canvas.drawLine(
+        Offset(normalStartPosition, centerY - halfBarHeight),
+        Offset(normalStartPosition, centerY + halfBarHeight),
+        separatorPaint,
+      );
+    }
 
+    // Draw the separator for the normal section.
     canvas.drawLine(
       Offset(normalEndPosition, centerY - halfBarHeight),
       Offset(normalEndPosition, centerY + halfBarHeight),
@@ -257,6 +286,7 @@ class RelativePositionRulerPainter extends CustomPainter {
     );
   }
 
+  /// Draws the current value indicator (triangle and line) above the ruler.
   void _drawXIndicator(
     Canvas canvas,
     double startX,
@@ -265,12 +295,14 @@ class RelativePositionRulerPainter extends CustomPainter {
   ) {
     final halfBarHeight = rulerHeight / 2;
 
-    double xPosition =
-        startX + (currentValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
+    // Calculate the x position for the indicator.
+    double xPosition = startX + (currentValue - belowValue) / (aboveValue - belowValue) * (endX - startX);
 
-    if (xPosition < 8) xPosition = 8;
-    if (xPosition > (endX - 8)) xPosition = endX - 8;
+    // Clamp the indicator position to avoid drawing outside the ruler.
+    if (xPosition < 8) xPosition = 8; // 8 px padding from the left
+    if (xPosition > (endX - 8)) xPosition = endX - 8; // 8 px padding from the right
 
+    // Draw the triangle indicator.
     var trianglePath = Path();
     const triangleHeight = 10.0;
     const halfBase = triangleHeight / 2;
@@ -290,6 +322,7 @@ class RelativePositionRulerPainter extends CustomPainter {
       )
       ..close();
 
+    // Draw the vertical line for the indicator.
     canvas.drawLine(
       Offset(xPosition, centerY - halfBarHeight),
       Offset(xPosition, centerY + halfBarHeight - 1),
@@ -299,7 +332,9 @@ class RelativePositionRulerPainter extends CustomPainter {
         ..strokeWidth = 2.0,
     );
 
+    // Draw the filled triangle.
     canvas.drawPath(trianglePath, Paint()..color = Colors.black);
+    // Draw the triangle border for emphasis.
     canvas.drawPath(
       trianglePath,
       Paint()
